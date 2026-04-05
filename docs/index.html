@@ -1,0 +1,960 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Strandbeest Linkage Simulator</title>
+    <style>
+      :root {
+        --bg: #f2eadf;
+        --panel: rgba(255, 251, 245, 0.88);
+        --panel-border: rgba(68, 56, 41, 0.16);
+        --canvas: #f8f5ef;
+        --ink: #2a241d;
+        --muted: #6c6050;
+        --accent: #1f4b99;
+        --accent-strong: #17366f;
+        --signal: #cf5a1a;
+        --trace: #d7cdbd;
+        --frame: #8d8578;
+        --shadow: 0 24px 60px rgba(78, 58, 32, 0.12);
+        --radius: 24px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(244, 204, 146, 0.3), transparent 32%),
+          linear-gradient(180deg, #f7f2e9 0%, #eee1cf 100%);
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+      }
+
+      body {
+        padding: 24px;
+      }
+
+      .shell {
+        display: grid;
+        grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
+        gap: 20px;
+        max-width: 1520px;
+        margin: 0 auto;
+        min-height: calc(100vh - 48px);
+      }
+
+      .panel,
+      .stage {
+        border: 1px solid var(--panel-border);
+        border-radius: var(--radius);
+        background: var(--panel);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(12px);
+      }
+
+      .panel {
+        display: flex;
+        flex-direction: column;
+        padding: 22px 20px;
+        overflow: hidden;
+      }
+
+      .panel-header {
+        margin-bottom: 18px;
+      }
+
+      .eyebrow {
+        margin: 0 0 6px;
+        color: var(--signal);
+        font-size: 0.76rem;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(2rem, 4vw, 2.6rem);
+        line-height: 0.95;
+        letter-spacing: -0.04em;
+      }
+
+      .intro {
+        margin: 10px 0 0;
+        color: var(--muted);
+        font-size: 0.96rem;
+        line-height: 1.45;
+      }
+
+      .sections {
+        overflow: auto;
+        padding-right: 4px;
+      }
+
+      .group + .group {
+        margin-top: 18px;
+      }
+
+      .group-title {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+        margin: 0 0 10px;
+      }
+
+      .group-title h2 {
+        margin: 0;
+        font-size: 1rem;
+        letter-spacing: 0.01em;
+      }
+
+      .group-title span {
+        color: var(--muted);
+        font-size: 0.8rem;
+      }
+
+      .button-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
+      button {
+        appearance: none;
+        border: none;
+        border-radius: 999px;
+        padding: 12px 16px;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+        transition: transform 140ms ease, background 140ms ease, color 140ms ease;
+      }
+
+      button:hover {
+        transform: translateY(-1px);
+      }
+
+      button.primary {
+        background: var(--signal);
+        color: #fff9f1;
+      }
+
+      button.secondary {
+        background: rgba(42, 36, 29, 0.08);
+        color: var(--ink);
+      }
+
+      .control {
+        padding: 12px 0;
+        border-top: 1px solid rgba(68, 56, 41, 0.08);
+      }
+
+      .control:first-of-type {
+        border-top: none;
+      }
+
+      .control-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 8px;
+        font-size: 0.95rem;
+      }
+
+      .control-head strong {
+        font-weight: 700;
+      }
+
+      .control-head output {
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+      }
+
+      input[type="range"] {
+        width: 100%;
+        accent-color: var(--accent);
+      }
+
+      .toggle {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 0 6px;
+        color: var(--ink);
+        font-size: 0.95rem;
+      }
+
+      .toggle input {
+        width: 18px;
+        height: 18px;
+        accent-color: var(--signal);
+      }
+
+      .length-grid {
+        display: grid;
+        gap: 2px;
+      }
+
+      .stage {
+        display: grid;
+        grid-template-rows: minmax(0, 1fr) auto;
+        overflow: hidden;
+      }
+
+      .canvas-wrap {
+        position: relative;
+        min-height: 520px;
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.16), transparent 26%),
+          var(--canvas);
+      }
+
+      canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+
+      .stage-title {
+        position: absolute;
+        left: 24px;
+        top: 22px;
+        margin: 0;
+        font-size: 0.92rem;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: rgba(42, 36, 29, 0.55);
+        pointer-events: none;
+      }
+
+      .status {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 14px 18px 16px;
+        border-top: 1px solid rgba(68, 56, 41, 0.08);
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+
+      .status strong {
+        color: var(--ink);
+        font-weight: 700;
+      }
+
+      .status-note {
+        font-size: 0.82rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+      }
+
+      @media (max-width: 980px) {
+        body {
+          padding: 14px;
+        }
+
+        .shell {
+          grid-template-columns: 1fr;
+          min-height: auto;
+        }
+
+        .panel {
+          max-height: none;
+        }
+
+        .canvas-wrap {
+          min-height: 58vh;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <aside class="panel">
+        <header class="panel-header">
+          <p class="eyebrow">Interactive Mechanics</p>
+          <h1>Strandbeest Linkage</h1>
+          <p class="intro">
+            Adjust the Theo Jansen linkage lengths, scrub the crank angle, or animate the full cycle. The browser
+            computes the pose live and traces the foot path directly on the canvas.
+          </p>
+        </header>
+
+        <div class="sections">
+          <section class="group">
+            <div class="group-title">
+              <h2>Motion</h2>
+              <span>Play it or drive it manually</span>
+            </div>
+            <div class="button-row">
+              <button class="primary" id="play-toggle" type="button">Play</button>
+              <button class="secondary" id="reset-button" type="button">Reset</button>
+            </div>
+            <div id="angle-control"></div>
+            <div id="speed-control"></div>
+            <label class="toggle" for="trace-visible">
+              <input id="trace-visible" type="checkbox" checked />
+              <span>Show foot trace</span>
+            </label>
+            <div id="samples-control"></div>
+          </section>
+
+          <section class="group">
+            <div class="group-title">
+              <h2>Lengths</h2>
+              <span>Link parameters a through m</span>
+            </div>
+            <div class="length-grid" id="length-controls"></div>
+          </section>
+        </div>
+      </aside>
+
+      <section class="stage">
+        <div class="canvas-wrap">
+          <p class="stage-title">Theo Jansen Linkage</p>
+          <canvas id="scene" aria-label="Theo Jansen linkage simulator"></canvas>
+        </div>
+        <div class="status">
+          <strong id="status-text">Ready</strong>
+          <span class="status-note">Static HTML for GitHub Pages</span>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const LENGTH_ORDER = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m"];
+      const DEFAULT_PARAMS = {
+        a: 38.0,
+        b: 41.5,
+        c: 39.3,
+        d: 40.1,
+        e: 55.8,
+        f: 39.4,
+        g: 36.7,
+        h: 65.7,
+        i: 49.0,
+        j: 50.0,
+        k: 61.9,
+        l: 7.8,
+        m: 15.0,
+      };
+      const SLIDER_RANGES = {
+        a: [10.0, 90.0, 0.1],
+        b: [15.0, 110.0, 0.1],
+        c: [15.0, 110.0, 0.1],
+        d: [15.0, 110.0, 0.1],
+        e: [20.0, 130.0, 0.1],
+        f: [15.0, 110.0, 0.1],
+        g: [15.0, 110.0, 0.1],
+        h: [20.0, 150.0, 0.1],
+        i: [20.0, 120.0, 0.1],
+        j: [20.0, 120.0, 0.1],
+        k: [20.0, 140.0, 0.1],
+        l: [0.0, 40.0, 0.1],
+        m: [5.0, 45.0, 0.1],
+      };
+      const JOINT_LABELS = {
+        ground: "O2",
+        crankCenter: "O4",
+        crankEnd: "X",
+        upperJoint: "W",
+        lowerJoint: "U",
+        leftJoint: "V",
+        kneeJoint: "T",
+        foot: "S",
+      };
+      const LINKS = [
+        ["ground", "upperJoint"],
+        ["ground", "lowerJoint"],
+        ["ground", "leftJoint"],
+        ["crankCenter", "crankEnd"],
+        ["crankEnd", "upperJoint"],
+        ["crankEnd", "lowerJoint"],
+        ["upperJoint", "leftJoint"],
+        ["leftJoint", "kneeJoint"],
+        ["lowerJoint", "kneeJoint"],
+        ["lowerJoint", "foot"],
+        ["kneeJoint", "foot"],
+      ];
+      const SEGMENT_LABELS = {
+        b: ["ground", "upperJoint"],
+        c: ["ground", "lowerJoint"],
+        d: ["ground", "leftJoint"],
+        e: ["leftJoint", "upperJoint"],
+        f: ["leftJoint", "kneeJoint"],
+        g: ["lowerJoint", "kneeJoint"],
+        h: ["kneeJoint", "foot"],
+        i: ["lowerJoint", "foot"],
+        j: ["crankEnd", "upperJoint"],
+        k: ["crankEnd", "lowerJoint"],
+        m: ["crankCenter", "crankEnd"],
+      };
+
+      class GeometryError extends Error {}
+
+      const state = {
+        params: { ...DEFAULT_PARAMS },
+        angle: 0,
+        speed: 48,
+        traceSamples: 220,
+        showTrace: true,
+        playing: false,
+        needsRender: true,
+        pose: null,
+        traceCacheKey: "",
+        traceCache: [],
+        viewportCacheKey: "",
+        viewportCache: [],
+        lastTimestamp: performance.now(),
+      };
+
+      const dom = {
+        canvas: document.getElementById("scene"),
+        playToggle: document.getElementById("play-toggle"),
+        resetButton: document.getElementById("reset-button"),
+        traceVisible: document.getElementById("trace-visible"),
+        statusText: document.getElementById("status-text"),
+        angleControl: document.getElementById("angle-control"),
+        speedControl: document.getElementById("speed-control"),
+        samplesControl: document.getElementById("samples-control"),
+        lengthControls: document.getElementById("length-controls"),
+      };
+      const ctx = dom.canvas.getContext("2d");
+
+      function point(x, y) {
+        return { x, y };
+      }
+
+      function distance(p0, p1) {
+        return Math.hypot(p1.x - p0.x, p1.y - p0.y);
+      }
+
+      function paramsKey(params) {
+        return LENGTH_ORDER.map((name) => params[name].toFixed(4)).join("|");
+      }
+
+      function circleIntersections(center0, radius0, center1, radius1) {
+        if (radius0 <= 0 || radius1 <= 0) {
+          throw new GeometryError("All link lengths must stay positive.");
+        }
+
+        const dx = center1.x - center0.x;
+        const dy = center1.y - center0.y;
+        const centerDistance = Math.hypot(dx, dy);
+        const epsilon = 1e-9;
+
+        if (centerDistance < epsilon) {
+          throw new GeometryError("Circle centers coincide; pose is undefined.");
+        }
+        if (centerDistance > radius0 + radius1 + epsilon) {
+          throw new GeometryError("Circles are too far apart to intersect.");
+        }
+        if (centerDistance < Math.abs(radius0 - radius1) - epsilon) {
+          throw new GeometryError("One circle is contained inside the other.");
+        }
+
+        const projection =
+          (radius0 * radius0 - radius1 * radius1 + centerDistance * centerDistance) / (2 * centerDistance);
+        const heightSq = radius0 * radius0 - projection * projection;
+        if (heightSq < -epsilon) {
+          throw new GeometryError("No real circle intersection exists for these lengths.");
+        }
+
+        const height = Math.sqrt(Math.max(heightSq, 0));
+        const midX = center0.x + (projection * dx) / centerDistance;
+        const midY = center0.y + (projection * dy) / centerDistance;
+        const offsetX = (-dy * height) / centerDistance;
+        const offsetY = (dx * height) / centerDistance;
+
+        return [
+          point(midX + offsetX, midY + offsetY),
+          point(midX - offsetX, midY - offsetY),
+        ];
+      }
+
+      function pick(candidates, previous, fallback) {
+        if (previous) {
+          return candidates.reduce((best, candidate) =>
+            distance(candidate, previous) < distance(best, previous) ? candidate : best
+          );
+        }
+        return candidates.reduce((best, candidate) => (fallback(candidate) < fallback(best) ? candidate : best));
+      }
+
+      function solvePose(params, angleDeg, previous = null) {
+        const ground = point(0, 0);
+        const crankCenter = point(params.a, params.l);
+        const angleRad = (angleDeg * Math.PI) / 180;
+        const crankEnd = point(
+          crankCenter.x + params.m * Math.cos(angleRad),
+          crankCenter.y + params.m * Math.sin(angleRad)
+        );
+
+        const upperJoint = pick(
+          circleIntersections(ground, params.b, crankEnd, params.j),
+          previous?.upperJoint ?? null,
+          (candidate) => -candidate.y
+        );
+        const lowerJoint = pick(
+          circleIntersections(ground, params.c, crankEnd, params.k),
+          previous?.lowerJoint ?? null,
+          (candidate) => candidate.y
+        );
+        const leftJoint = pick(
+          circleIntersections(ground, params.d, upperJoint, params.e),
+          previous?.leftJoint ?? null,
+          (candidate) => candidate.x
+        );
+        const kneeJoint = pick(
+          circleIntersections(leftJoint, params.f, lowerJoint, params.g),
+          previous?.kneeJoint ?? null,
+          (candidate) => candidate.x
+        );
+        const foot = pick(
+          circleIntersections(kneeJoint, params.h, lowerJoint, params.i),
+          previous?.foot ?? null,
+          (candidate) => candidate.y
+        );
+
+        return {
+          ground,
+          crankCenter,
+          crankEnd,
+          upperJoint,
+          lowerJoint,
+          leftJoint,
+          kneeJoint,
+          foot,
+        };
+      }
+
+      function footPath(params, samples) {
+        if (samples < 4) {
+          throw new Error("Need at least 4 samples to build a path.");
+        }
+
+        const path = [];
+        let previous = null;
+        for (let index = 0; index < samples; index += 1) {
+          const angle = (360 * index) / samples;
+          previous = solvePose(params, angle, previous);
+          path.push(previous.foot);
+        }
+        return path;
+      }
+
+      function viewportPoints(params) {
+        const key = paramsKey(params);
+        if (key === state.viewportCacheKey) {
+          return state.viewportCache;
+        }
+
+        const sweep = [];
+        let previous = null;
+        for (let index = 0; index < 180; index += 1) {
+          const angle = (360 * index) / 180;
+          previous = solvePose(params, angle, previous);
+          sweep.push(
+            previous.ground,
+            previous.crankCenter,
+            previous.crankEnd,
+            previous.upperJoint,
+            previous.lowerJoint,
+            previous.leftJoint,
+            previous.kneeJoint,
+            previous.foot
+          );
+        }
+
+        state.viewportCacheKey = key;
+        state.viewportCache = sweep;
+        return sweep;
+      }
+
+      function tracePath(params) {
+        const key = `${paramsKey(params)}|${state.traceSamples}`;
+        if (key === state.traceCacheKey) {
+          return state.traceCache;
+        }
+        state.traceCache = footPath(params, state.traceSamples);
+        state.traceCacheKey = key;
+        return state.traceCache;
+      }
+
+      function clearGeometryCaches() {
+        state.traceCacheKey = "";
+        state.viewportCacheKey = "";
+      }
+
+      function requestRender() {
+        state.needsRender = true;
+      }
+
+      function createSlider({ parent, id, label, min, max, step, value, formatter, onInput }) {
+        const wrapper = document.createElement("div");
+        wrapper.className = "control";
+
+        const head = document.createElement("label");
+        head.className = "control-head";
+        head.htmlFor = id;
+
+        const strong = document.createElement("strong");
+        strong.textContent = label;
+
+        const output = document.createElement("output");
+        output.value = formatter(value);
+        output.textContent = formatter(value);
+
+        head.append(strong, output);
+
+        const input = document.createElement("input");
+        input.type = "range";
+        input.id = id;
+        input.min = String(min);
+        input.max = String(max);
+        input.step = String(step);
+        input.value = String(value);
+
+        input.addEventListener("input", () => {
+          const numericValue = Number(input.value);
+          output.value = formatter(numericValue);
+          output.textContent = formatter(numericValue);
+          onInput(numericValue);
+        });
+
+        wrapper.append(head, input);
+        parent.append(wrapper);
+        return input;
+      }
+
+      const controls = {
+        angle: createSlider({
+          parent: dom.angleControl,
+          id: "angle",
+          label: "Crank angle",
+          min: 0,
+          max: 360,
+          step: 0.1,
+          value: state.angle,
+          formatter: (value) => `${value.toFixed(1)} deg`,
+          onInput: (value) => {
+            state.angle = value;
+            requestRender();
+          },
+        }),
+        speed: createSlider({
+          parent: dom.speedControl,
+          id: "speed",
+          label: "Speed",
+          min: -240,
+          max: 240,
+          step: 1,
+          value: state.speed,
+          formatter: (value) => `${value.toFixed(1)} deg/s`,
+          onInput: (value) => {
+            state.speed = value;
+            requestRender();
+          },
+        }),
+        samples: createSlider({
+          parent: dom.samplesControl,
+          id: "trace-samples",
+          label: "Trace samples",
+          min: 60,
+          max: 420,
+          step: 10,
+          value: state.traceSamples,
+          formatter: (value) => `${Math.round(value)}`,
+          onInput: (value) => {
+            state.traceSamples = Math.round(value);
+            state.traceCacheKey = "";
+            requestRender();
+          },
+        }),
+      };
+
+      for (const name of LENGTH_ORDER) {
+        const [min, max, step] = SLIDER_RANGES[name];
+        controls[name] = createSlider({
+          parent: dom.lengthControls,
+          id: `length-${name}`,
+          label: `Length ${name}`,
+          min,
+          max,
+          step,
+          value: state.params[name],
+          formatter: (value) => value.toFixed(1),
+          onInput: (value) => {
+            state.params[name] = value;
+            clearGeometryCaches();
+            requestRender();
+          },
+        });
+      }
+
+      dom.traceVisible.addEventListener("change", () => {
+        state.showTrace = dom.traceVisible.checked;
+        requestRender();
+      });
+
+      dom.playToggle.addEventListener("click", () => {
+        state.playing = !state.playing;
+        state.lastTimestamp = performance.now();
+        dom.playToggle.textContent = state.playing ? "Pause" : "Play";
+      });
+
+      dom.resetButton.addEventListener("click", () => {
+        state.params = { ...DEFAULT_PARAMS };
+        state.angle = 0;
+        state.speed = 48;
+        state.traceSamples = 220;
+        state.showTrace = true;
+        state.playing = false;
+        state.pose = null;
+        clearGeometryCaches();
+
+        controls.angle.value = String(state.angle);
+        controls.speed.value = String(state.speed);
+        controls.samples.value = String(state.traceSamples);
+        dom.traceVisible.checked = true;
+        dom.playToggle.textContent = "Play";
+
+        for (const name of LENGTH_ORDER) {
+          controls[name].value = String(state.params[name]);
+          controls[name].dispatchEvent(new Event("input"));
+        }
+
+        controls.angle.dispatchEvent(new Event("input"));
+        controls.speed.dispatchEvent(new Event("input"));
+        controls.samples.dispatchEvent(new Event("input"));
+        requestRender();
+      });
+
+      function fitCanvas() {
+        const bounds = dom.canvas.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+        dom.canvas.width = Math.round(bounds.width * dpr);
+        dom.canvas.height = Math.round(bounds.height * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+
+      function transformFactory(worldPoints) {
+        const width = dom.canvas.getBoundingClientRect().width || 100;
+        const height = dom.canvas.getBoundingClientRect().height || 100;
+        const margin = 60;
+
+        const xs = worldPoints.map((p) => p.x);
+        const ys = worldPoints.map((p) => p.y);
+        const minX = Math.min(...xs);
+        const maxX = Math.max(...xs);
+        const minY = Math.min(...ys);
+        const maxY = Math.max(...ys);
+
+        const spanX = Math.max(maxX - minX, 1);
+        const spanY = Math.max(maxY - minY, 1);
+        const scale = Math.min((width - 2 * margin) / spanX, (height - 2 * margin) / spanY) * 0.9;
+        const centerX = (minX + maxX) / 2;
+        const centerY = (minY + maxY) / 2;
+
+        return (p) => ({
+          x: width / 2 + (p.x - centerX) * scale,
+          y: height / 2 - (p.y - centerY) * scale,
+        });
+      }
+
+      function drawText(text, x, y, color, size = 11, align = "left") {
+        ctx.fillStyle = color;
+        ctx.font = `700 ${size}px "Avenir Next", "Segoe UI", sans-serif`;
+        ctx.textAlign = align;
+        ctx.textBaseline = "middle";
+        ctx.fillText(text, x, y);
+      }
+
+      function drawSegmentLabel(transform, start, end, label, dx = 0, dy = 0) {
+        const s = transform(start);
+        const e = transform(end);
+        const midX = (s.x + e.x) / 2;
+        const midY = (s.y + e.y) / 2;
+
+        if (dx === 0 && dy === 0) {
+          const vx = e.x - s.x;
+          const vy = e.y - s.y;
+          const length = Math.max(Math.hypot(vx, vy), 1);
+          dx = (-vy / length) * 12;
+          dy = (vx / length) * 12;
+        }
+
+        drawText(label, midX + dx, midY + dy, "#2a241d", 11, "center");
+      }
+
+      function drawFixedOffsets(transform, pose) {
+        const ground = pose.ground;
+        const crankCenter = pose.crankCenter;
+        const corner = point(crankCenter.x, ground.y);
+        const g = transform(ground);
+        const c = transform(corner);
+        const o = transform(crankCenter);
+
+        ctx.save();
+        ctx.strokeStyle = "#8d8578";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.moveTo(g.x, g.y);
+        ctx.lineTo(c.x, c.y);
+        ctx.lineTo(o.x, o.y);
+        ctx.stroke();
+        ctx.restore();
+
+        drawSegmentLabel(transform, ground, corner, "a", 0, -14);
+        drawSegmentLabel(transform, corner, crankCenter, "l", 14, 0);
+      }
+
+      function drawTrace(transform, trace) {
+        if (!trace.length) {
+          return;
+        }
+
+        ctx.save();
+        ctx.strokeStyle = "#d7cdbd";
+        ctx.lineWidth = 2;
+        ctx.lineJoin = "round";
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        trace.forEach((worldPoint, index) => {
+          const screen = transform(worldPoint);
+          if (index === 0) {
+            ctx.moveTo(screen.x, screen.y);
+          } else {
+            ctx.lineTo(screen.x, screen.y);
+          }
+        });
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      function drawPose(transform, pose) {
+        drawFixedOffsets(transform, pose);
+
+        for (const [startName, endName] of LINKS) {
+          const start = transform(pose[startName]);
+          const end = transform(pose[endName]);
+          const isCrank = [startName, endName].includes("crankCenter") && [startName, endName].includes("crankEnd");
+
+          ctx.save();
+          ctx.strokeStyle = isCrank ? "#cf5a1a" : "#1f4b99";
+          ctx.lineWidth = isCrank ? 4 : 3;
+          ctx.lineCap = "round";
+          ctx.beginPath();
+          ctx.moveTo(start.x, start.y);
+          ctx.lineTo(end.x, end.y);
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        for (const [label, [startName, endName]] of Object.entries(SEGMENT_LABELS)) {
+          drawSegmentLabel(transform, pose[startName], pose[endName], label);
+        }
+
+        for (const [name, text] of Object.entries(JOINT_LABELS)) {
+          const p = transform(pose[name]);
+          const radius = name === "foot" ? 6 : 5;
+          ctx.save();
+          ctx.fillStyle = name === "crankCenter" || name === "crankEnd" ? "#cf5a1a" : "#111111";
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+          drawText(text, p.x + 14, p.y - 14, "#40372c", 11);
+        }
+      }
+
+      function drawReference(params) {
+        const points = [point(0, 0), point(params.a, params.l), point(params.a + params.m, params.l)];
+        const transform = transformFactory([point(-10, -10), point(params.a + params.m + 10, params.l + 20), ...points]);
+        const referencePose = {
+          ground: points[0],
+          crankCenter: points[1],
+          crankEnd: points[2],
+        };
+        drawFixedOffsets(transform, referencePose);
+        const start = transform(points[1]);
+        const end = transform(points[2]);
+
+        ctx.save();
+        ctx.strokeStyle = "#cf5a1a";
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(start.x, start.y);
+        ctx.lineTo(end.x, end.y);
+        ctx.stroke();
+        ctx.restore();
+
+        drawSegmentLabel(transform, points[1], points[2], "m");
+      }
+
+      function updateStatus(pose) {
+        if (pose) {
+          dom.statusText.textContent =
+            `Angle ${state.angle.toFixed(1)} deg   Foot (${pose.foot.x.toFixed(2)}, ${pose.foot.y.toFixed(2)})   Speed ${state.speed.toFixed(1)} deg/s`;
+        }
+      }
+
+      function render() {
+        fitCanvas();
+        const width = dom.canvas.getBoundingClientRect().width;
+        const height = dom.canvas.getBoundingClientRect().height;
+        ctx.clearRect(0, 0, width, height);
+        state.needsRender = false;
+
+        try {
+          const pose = solvePose(state.params, state.angle, state.pose);
+          state.pose = pose;
+          const points = viewportPoints(state.params);
+          const transform = transformFactory(points);
+          const trace = state.showTrace ? tracePath(state.params) : [];
+
+          drawTrace(transform, trace);
+          drawPose(transform, pose);
+          updateStatus(pose);
+        } catch (error) {
+          state.pose = null;
+          const message = error instanceof GeometryError ? error.message : "Unexpected rendering error.";
+          dom.statusText.textContent = `Infeasible geometry: ${message}`;
+          drawReference(state.params);
+        }
+      }
+
+      function tick(timestamp) {
+        const dt = (timestamp - state.lastTimestamp) / 1000;
+        state.lastTimestamp = timestamp;
+
+        if (state.playing) {
+          state.angle = (state.angle + state.speed * dt + 360) % 360;
+          controls.angle.value = String(state.angle);
+          controls.angle.dispatchEvent(new Event("input"));
+        }
+
+        if (state.playing || state.needsRender) {
+          render();
+        }
+
+        requestAnimationFrame(tick);
+      }
+
+      window.addEventListener("resize", requestRender);
+      fitCanvas();
+      render();
+      requestAnimationFrame(tick);
+    </script>
+  </body>
+</html>
