@@ -2,6 +2,8 @@
 
 Interactive Theo Jansen leg simulator with a Tkinter GUI, live length sliders, crank animation, and a foot-path trace.
 
+![Simulator screenshot](docs/sim-screenshot.png)
+
 ## Install `uv`
 
 macOS or Linux:
